@@ -1,5 +1,15 @@
 # Simulador de Balance Energético Residencial/Industrial Basado en Datos Reales
 
+## Estructura del proyecto
+
+- `data/`: dataset CSV y `datapackage.json`.
+- `fdp/`: scripts de cálculo de FDP, JSON de resultados y gráficos generados.
+
+### Ejecución
+
+- `python fdp/determinar_franjas_horarias.py`
+- `python fdp/determinar_franjas_horarias_paneles.py`
+
 ## Objetivo
 
 Desarrollar un modelo de simulación de **tiempo discreto con Δt fijo (1 hora)** para evaluar la eficiencia de un sistema de energía renovable compuesto por **paneles solares y una batería**, utilizando series temporales históricas de generación y consumo eléctrico.

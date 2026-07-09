@@ -6,7 +6,10 @@ from pathlib import Path
 import json
 
 # 1. Cargar y preparar el dataset
-df = pd.read_csv('household_data_60min_singleindex.csv')
+BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = BASE_DIR / 'data'
+
+df = pd.read_csv(DATA_DIR / 'household_data_60min_singleindex.csv')
 df['utc_timestamp'] = pd.to_datetime(df['utc_timestamp'])
 df.set_index('utc_timestamp', inplace=True)
 
