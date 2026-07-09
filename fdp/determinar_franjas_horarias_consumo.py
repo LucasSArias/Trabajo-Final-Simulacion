@@ -15,7 +15,7 @@ df.set_index('utc_timestamp', inplace=True)
 
 salida_graficos = Path(__file__).resolve().parent / 'graficos_fdp_consumo'
 salida_graficos.mkdir(exist_ok=True)
-salida_fdp = Path(__file__).resolve().parent / 'fdp_mejor_ajuste_residential3.json'
+salida_fdp = Path(__file__).resolve().parent / 'fdp_mejor_ajuste_consumo.json'
 
 resultados_fdp = {}
 

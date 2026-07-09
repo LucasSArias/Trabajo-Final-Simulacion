@@ -13,9 +13,9 @@ df = pd.read_csv(DATA_DIR / 'household_data_60min_singleindex.csv')
 df['utc_timestamp'] = pd.to_datetime(df['utc_timestamp'])
 df.set_index('utc_timestamp', inplace=True)
 
-salida_graficos = Path(__file__).resolve().parent / 'graficos_fdp_paneles'
+salida_graficos = Path(__file__).resolve().parent / 'graficos_fdp_generacion'
 salida_graficos.mkdir(exist_ok=True)
-salida_fdp = Path(__file__).resolve().parent / 'fdp_mejor_ajuste_paneles_residential3.json'
+salida_fdp = Path(__file__).resolve().parent / 'fdp_mejor_ajuste_generacion.json'
 
 resultados_fdp = {}
 

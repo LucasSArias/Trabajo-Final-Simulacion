@@ -10,7 +10,7 @@ df = pd.read_csv(DATA_DIR / 'household_data_60min_singleindex.csv')
 df['utc_timestamp'] = pd.to_datetime(df['utc_timestamp'])
 df.set_index('utc_timestamp', inplace=True)
 
-salida_graficos = Path(__file__).resolve().parent / 'graficos_fdp_paneles'
+salida_graficos = Path(__file__).resolve().parent / 'graficos_fdp_generacion'
 salida_graficos.mkdir(exist_ok=True)
 
 columna_pv = 'DE_KN_residential3_pv'
