@@ -118,9 +118,9 @@ def ajustar_fdp(datos, nombre_franja):
 
 
 # 5. Ejecutar el análisis para cada franja de paneles
-ajustar_fdp(datos_manana, 'Mañana (4hs a 8hs)')
-ajustar_fdp(datos_mediodia, 'Mediodía (9hs a 13hs)')
-ajustar_fdp(datos_tarde, 'Tarde (14hs a 18hs)')
+ajustar_fdp(datos_manana, 'Mañana')
+ajustar_fdp(datos_mediodia, 'Mediodía')
+ajustar_fdp(datos_tarde, 'Tarde')
 
 with salida_fdp.open('w', encoding='utf-8') as archivo:
 	json.dump(resultados_fdp, archivo, ensure_ascii=False, indent=2)
