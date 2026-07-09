@@ -13,7 +13,7 @@ df = pd.read_csv(DATA_DIR / 'household_data_60min_singleindex.csv')
 df['utc_timestamp'] = pd.to_datetime(df['utc_timestamp'])
 df.set_index('utc_timestamp', inplace=True)
 
-salida_graficos = Path(__file__).resolve().parent / 'graficos_fdp'
+salida_graficos = Path(__file__).resolve().parent / 'graficos_fdp_consumo'
 salida_graficos.mkdir(exist_ok=True)
 salida_fdp = Path(__file__).resolve().parent / 'fdp_mejor_ajuste_residential3.json'
 
