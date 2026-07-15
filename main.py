@@ -221,3 +221,5 @@ if resultados_globales:
         
     print(f"\n¡Listo! Simulación completada con éxito.")
     print(f"Los resultados de los 160 escenarios se guardaron en: {path_salida_csv}")
+
+    #Fin
