@@ -79,7 +79,7 @@ for idx, (panel, bateria, cable, gestor_inteligente) in enumerate(combinaciones,
     
     # 3.1 Inicialización de Variables del Escenario
     T = 0
-    TF = 8760
+    TF = 8760 * 1#TODO: Cuando sepamos que todo funciona, multiplicar por 50 para que los resultados sean correctos
     
     carga_bateria = 0
     consumo_total = 0
