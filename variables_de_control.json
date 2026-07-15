@@ -1,0 +1,47 @@
+{
+  "paneles": [
+    {"potencia_kwp": 0.8, "precio_usd": 1200},
+    {"potencia_kwp": 1.2, "precio_usd": 1600},
+    {"potencia_kwp": 2.0, "precio_usd": 2400},
+    {"potencia_kwp": 3.0, "precio_usd": 3300}
+  ],
+  "baterias": [
+    {"capacidad_kwh": 2.0, "precio_usd": 900},
+    {"capacidad_kwh": 5.0, "precio_usd": 1500},
+    {"capacidad_kwh": 8.0, "precio_usd": 2300},
+    {"capacidad_kwh": 10.0, "precio_usd": 3000}
+  ],
+  "cables": [
+    {
+      "opcion": 1,
+      "material": "Cobre Solar Premium (10 mm², Doble Aislación XLPE)",
+      "eficiencia": 0.99,
+      "costo_instalacion_usd": 500
+    },
+    {
+      "opcion": 2,
+      "material": "Cobre Estándar (6 mm², Aislación PVC)",
+      "eficiencia": 0.96,
+      "costo_instalacion_usd": 300
+    },
+    {
+      "opcion": 3,
+      "material": "Aluminio de Alta Sección (16 mm²)",
+      "eficiencia": 0.94,
+      "costo_instalacion_usd": 200
+    },
+    {
+      "opcion": 4,
+      "material": "Aluminio Estándar (10 mm²)",
+      "eficiencia": 0.90,
+      "costo_instalacion_usd": 120
+    },
+    {
+      "opcion": 5,
+      "material": "Aleación CCA (Aluminio revestido en cobre, 6 mm²)",
+      "eficiencia": 0.85,
+      "costo_instalacion_usd": 80
+    }
+  ],
+  "gestor_inteligente": [true, false]
+}
