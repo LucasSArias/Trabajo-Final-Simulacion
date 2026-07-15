@@ -95,7 +95,7 @@ for idx, (panel, bateria, cable, gestor_inteligente) in enumerate(combinaciones,
     energia_ciclada_historica = 0
     capacidad_actual_bateria = capacidad_bateria
     
-    precio_consumo = 0.05 if gestor_inteligente else 0.3
+    precio_consumo = 0.05 if gestor_inteligente else 0.3 #TODO: Actualizar en documentación el precio de los kWh segun si hay gestor inteligente o no.
     costo_acumulado = costo_instalacion_cable + precio_panel + precio_bateria
     if gestor_inteligente:
         costo_acumulado += 5000
@@ -174,7 +174,7 @@ for idx, (panel, bateria, cable, gestor_inteligente) in enumerate(combinaciones,
         capacidad_actual_bateria = capacidad_bateria - (capacidad_bateria * 0.0002 * ciclos_actuales)
         
         # Reemplazo de batería por fin de vida útil
-        if capacidad_actual_bateria < (capacidad_bateria * 0.5):
+        if capacidad_actual_bateria < 1: #TODO: Actualizar en diagrama y consigna. Decimos que una bateria se cambia cuando la capacidad es menor a 1 kWh.
             capacidad_actual_bateria = capacidad_bateria
             costo_acumulado += precio_bateria
             energia_ciclada_historica += energia_bateria_ciclada
