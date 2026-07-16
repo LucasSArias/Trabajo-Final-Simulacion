@@ -8,7 +8,6 @@ import scipy.stats as stats
 # 1. CARGA DE ARCHIVOS Y CONFIGURACIÓN DE PATHS
 # =============================================================================
 
-# TODO: COLOCAR AQUÍ LAS RUTAS DE TUS JSON DE FDP Y OPCIONES
 path_consumo = "fdp/fdp_mejor_ajuste_consumo.json"
 path_generacion = "fdp/fdp_mejor_ajuste_generacion.json"
 path_opciones = "variables_de_control.json"
@@ -25,6 +24,8 @@ def cargar_json(ruta):
 datos_consumo = cargar_json(path_consumo)
 datos_generacion = cargar_json(path_generacion)
 opciones = cargar_json(path_opciones)
+
+anios_a_simular = 1
 
 # =============================================================================
 # 2. GENERADOR DE MUESTRAS (FDP)
@@ -47,6 +48,45 @@ def obtener_muestra(datos_franja):
         return stats.uniform.rvs(loc=params.get("loc"), scale=params.get("scale"))
     return 0.0
 
+
+def es_mejor_escenario(nombre_metrica, direccion, nuevo, actual, criterios_nuevo, criterios_actual):
+    # 0. Filtros excluyentes por definición del sistema
+    gestor_nuevo = nuevo["Gestor Inteligente"]
+
+    # El lucro cesante y la energía desperdiciada solo existen si NO hay gestor inteligente
+    if nombre_metrica in ["Lucro Cesante Mensual Promedio ($/mes)", "Energía Desperdiciada Anual (kWh)"]:
+        if gestor_nuevo: # Si tiene gestor, queda descalificado automáticamente
+            return False
+
+    # Los ingresos por inyección solo existen si SÍ hay gestor inteligente
+    if nombre_metrica == "Ingresos por Inyección Mensual Promedio ($/mes)":
+        if not gestor_nuevo: # Si no tiene gestor, queda descalificado automáticamente
+            return False
+
+    # Ahora sí, si pasó el filtro y es el primer escenario evaluado, gana por defecto
+    if actual is None:
+        return True
+
+    # 1. Evaluamos primero la métrica principal (la que estamos buscando optimizar)
+    val_nuevo_ppal = criterios_nuevo[nombre_metrica]
+    val_actual_ppal = criterios_actual[nombre_metrica]
+
+    if val_nuevo_ppal != val_actual_ppal:
+        return val_nuevo_ppal > val_actual_ppal if direccion == "max" else val_nuevo_ppal < val_actual_ppal
+
+    # 2. Si hay empate, recorremos el diccionario de desempates en cascada
+    for metrica_desempate, dir_desempate in objetivos_metricas.items():
+        if metrica_desempate == nombre_metrica:
+            continue
+            
+        val_n = criterios_nuevo[metrica_desempate]
+        val_a = criterios_actual[metrica_desempate]
+
+        if val_n != val_a:
+            return val_n > val_a if dir_desempate == "max" else val_n < val_a
+
+    # 3. Retorno por defecto (solo ocurre si ambos escenarios son clones exactos)
+    return False
 # =============================================================================
 # 3. GENERACIÓN DE COMBINACIONES Y SIMULACIÓN
 # =============================================================================
@@ -64,15 +104,19 @@ total_escenarios = len(combinaciones)
 print(f"Iniciando simulación de {total_escenarios} escenarios...")
 
 objetivos_metricas = {
-    "Costo Acumulado Total ($)": "min",
     "Autosuficiencia Anual (%)": "max",
+    "Déficit Energético Mensual Promedio (kWh/mes)": "min",
+    "Energía Desperdiciada Anual (kWh)": "min",
+    "Lucro Cesante Mensual Promedio ($/mes)": "min",
     "Ahorro Económico Anual ($)": "max",
-    "Tiempo Bat Agotada (%)": "min",
-    "Ciclos de Desgaste Anual": "min",
+    "Porcentaje Bateria Agotada (%)": "min",
+    "Promedio Ciclos de Desgaste Anual": "min",
     "Aprovechamiento Solar (%)": "max",
+    "Ingresos por Inyección Mensual Promedio ($/mes)": "max",
 }
 
 mejores_escenarios = {nombre: None for nombre in objetivos_metricas}
+mejores_escenarios_crudos = {nombre: None for nombre in objetivos_metricas}
 
 for idx, (panel, bateria, cable, gestor_inteligente) in enumerate(combinaciones, 1):
     if idx % 10 == 0 or idx == 1:
@@ -91,7 +135,7 @@ for idx, (panel, bateria, cable, gestor_inteligente) in enumerate(combinaciones,
     
     # 3.1 Inicialización de Variables del Escenario
     T = 0
-    TF = 8760 * 10#TODO: Cuando sepamos que todo funciona, multiplicar por 50 para que los resultados sean correctos
+    TF = 8760 * anios_a_simular
     
     #Condiciones iniciales de variables de estado y variables intermedias (usadas para el cálculo de resultados)
     carga_bateria = 0
@@ -108,7 +152,7 @@ for idx, (panel, bateria, cable, gestor_inteligente) in enumerate(combinaciones,
     capacidad_actual_bateria = capacidad_bateria
     precio_reintegro = 0.05
     
-    precio_consumo = 0.05 if gestor_inteligente else 0.3 #TODO: Actualizar en documentación el precio de los kWh segun si hay gestor inteligente o no.
+    precio_consumo = 0.05 if gestor_inteligente else 0.3
     costo_acumulado = costo_instalacion_cable + precio_panel + precio_bateria
     if gestor_inteligente:
         costo_acumulado += 5000
@@ -187,7 +231,7 @@ for idx, (panel, bateria, cable, gestor_inteligente) in enumerate(combinaciones,
         capacidad_actual_bateria = capacidad_bateria - (capacidad_bateria * 0.0002 * ciclos_actuales)
         
         # Reemplazo de batería por fin de vida útil
-        if capacidad_actual_bateria < 1: #TODO: Actualizar en diagrama y consigna. Decimos que una bateria se cambia cuando la capacidad es menor a 1 kWh.
+        if capacidad_actual_bateria < 1:
             capacidad_actual_bateria = capacidad_bateria
             costo_acumulado += precio_bateria
             energia_ciclada_historica += energia_bateria_ciclada
@@ -197,11 +241,33 @@ for idx, (panel, bateria, cable, gestor_inteligente) in enumerate(combinaciones,
         T += 1
         
     # 3.3 Métricas finales de este escenario específico
+    anos_simulados = TF / 8760
+    meses_simulados = anos_simulados * 12
+
     porcentaje_autosuficiencia = (cant_operaciones_independientes / TF) * 100
     promedio_ahorro_anual = (consumo_total * 0.3 - costo_acumulado) * (24 * 365 / TF)
+    deficit_energetico_anual = energia_consumida
+    deficit_energetico_mensual = deficit_energetico_anual / meses_simulados if meses_simulados > 0 else 0.0
+    energia_desperdiciada_anual = energia_desperdiciada if not gestor_inteligente else 0.0
+    lucro_cesante_mensual = (lucro_cesante / meses_simulados) if (not gestor_inteligente and meses_simulados > 0) else 0.0
     porcentaje_bateria_agotada = (cant_veces_bateria_agotada / TF) * 100
     ciclos_desgaste_anual = (energia_ciclada_historica + energia_bateria_ciclada) / (capacidad_bateria * 2)
-    porcentaje_aprovechamiento_solar = (1 - (energia_desperdiciada / generacion_total)) * 100 if generacion_total > 0 else 0.0
+    energia_inyectada_anual = energia_inyectada_red if gestor_inteligente else 0.0
+    ingresos_inyeccion_mensual = (energia_inyectada_anual * precio_reintegro / meses_simulados) if (gestor_inteligente and meses_simulados > 0) else 0.0
+    energia_utilizada_total = generacion_total - energia_desperdiciada_anual
+    porcentaje_aprovechamiento_solar = (energia_utilizada_total / generacion_total) * 100 if generacion_total > 0 else 0.0
+
+    criterios_desempate_escenario = {
+        "Ahorro Económico Anual ($)": promedio_ahorro_anual,
+        "Autosuficiencia Anual (%)": porcentaje_autosuficiencia,
+        "Promedio Ciclos de Desgaste Anual": ciclos_desgaste_anual,
+        "Aprovechamiento Solar (%)": porcentaje_aprovechamiento_solar,
+        "Energía Desperdiciada Anual (kWh)": energia_desperdiciada_anual,
+        "Déficit Energético Mensual Promedio (kWh/mes)": deficit_energetico_mensual,
+        "Porcentaje Bateria Agotada (%)": porcentaje_bateria_agotada,
+        "Ingresos por Inyección Mensual Promedio ($/mes)": ingresos_inyeccion_mensual,
+        "Lucro Cesante Mensual Promedio ($/mes)": lucro_cesante_mensual,
+    }
     
     # Guardamos los parámetros de entrada y salida del escenario
     resultado_escenario = {
@@ -214,26 +280,28 @@ for idx, (panel, bateria, cable, gestor_inteligente) in enumerate(combinaciones,
         "Eficiencia Cable (%)": eficiencia_cables * 100,
         "Costo Instalación Cable ($)": costo_instalacion_cable,
         "Gestor Inteligente": gestor_inteligente,
-        "Costo Acumulado Total ($)": round(costo_acumulado, 2),
         "Autosuficiencia Anual (%)": round(porcentaje_autosuficiencia, 2),
+        "Déficit Energético Anual (kWh)": round(deficit_energetico_anual, 2),
+        "Déficit Energético Mensual Promedio (kWh/mes)": round(deficit_energetico_mensual, 2),
+        "Energía Desperdiciada Anual (kWh)": round(energia_desperdiciada_anual, 2),
+        "Lucro Cesante Mensual Promedio ($/mes)": round(lucro_cesante_mensual, 2),
         "Ahorro Económico Anual ($)": round(promedio_ahorro_anual, 2),
-        "Tiempo Bat Agotada (%)": round(porcentaje_bateria_agotada, 2),
-        "Ciclos de Desgaste Anual": round(ciclos_desgaste_anual, 2),
-        "Aprovechamiento Solar (%)": round(porcentaje_aprovechamiento_solar, 2)
+        "Porcentaje Bateria Agotada (%)": round(porcentaje_bateria_agotada, 2),
+        "Promedio Ciclos de Desgaste Anual": round(ciclos_desgaste_anual, 2),
+        "Aprovechamiento Solar (%)": round(porcentaje_aprovechamiento_solar, 2),
+        "Energía Inyectada a Red Anual (kWh)": round(energia_inyectada_anual, 2),
+        "Ingresos por Inyección Mensual Promedio ($/mes)": round(ingresos_inyeccion_mensual, 2)
     }
 
     resultados_globales.append(resultado_escenario)
 
     for nombre_metrica, direccion in objetivos_metricas.items():
         mejor_actual = mejores_escenarios[nombre_metrica]
-        valor_nuevo = resultado_escenario[nombre_metrica]
+        mejor_actual_crudo = mejores_escenarios_crudos[nombre_metrica]
 
-        if mejor_actual is None:
+        if es_mejor_escenario(nombre_metrica, direccion, resultado_escenario, mejor_actual, criterios_desempate_escenario, mejor_actual_crudo):
             mejores_escenarios[nombre_metrica] = resultado_escenario
-        else:
-            valor_actual = mejor_actual[nombre_metrica]
-            if (direccion == "max" and valor_nuevo > valor_actual) or (direccion == "min" and valor_nuevo < valor_actual):
-                mejores_escenarios[nombre_metrica] = resultado_escenario
+            mejores_escenarios_crudos[nombre_metrica] = criterios_desempate_escenario
 
 # =============================================================================
 # 4. EXPORTACIÓN A CSV
@@ -263,12 +331,17 @@ if resultados_globales:
             "Precio Panel ($)": mejor_escenario["Precio Panel ($)"],
             "Precio Batería ($)": mejor_escenario["Precio Batería ($)"],
             "Costo Instalación Cable ($)": mejor_escenario["Costo Instalación Cable ($)"],
-            "Costo Acumulado Total ($)": mejor_escenario["Costo Acumulado Total ($)"],
             "Autosuficiencia Anual (%)": mejor_escenario["Autosuficiencia Anual (%)"],
+            "Déficit Energético Anual (kWh)": mejor_escenario["Déficit Energético Anual (kWh)"],
+            "Déficit Energético Mensual Promedio (kWh/mes)": mejor_escenario["Déficit Energético Mensual Promedio (kWh/mes)"],
+            "Energía Desperdiciada Anual (kWh)": mejor_escenario["Energía Desperdiciada Anual (kWh)"],
+            "Lucro Cesante Mensual Promedio ($/mes)": mejor_escenario["Lucro Cesante Mensual Promedio ($/mes)"],
             "Ahorro Económico Anual ($)": mejor_escenario["Ahorro Económico Anual ($)"],
-            "Tiempo Bat Agotada (%)": mejor_escenario["Tiempo Bat Agotada (%)"],
-            "Ciclos de Desgaste Anual": mejor_escenario["Ciclos de Desgaste Anual"],
+            "Porcentaje Bateria Agotada (%)": mejor_escenario["Porcentaje Bateria Agotada (%)"],
+            "Promedio Ciclos de Desgaste Anual": mejor_escenario["Promedio Ciclos de Desgaste Anual"],
             "Aprovechamiento Solar (%)": mejor_escenario["Aprovechamiento Solar (%)"],
+            "Energía Inyectada a Red Anual (kWh)": mejor_escenario["Energía Inyectada a Red Anual (kWh)"],
+            "Ingresos por Inyección Mensual Promedio ($/mes)": mejor_escenario["Ingresos por Inyección Mensual Promedio ($/mes)"],
         })
 
     with open(path_resumen_csv, mode="w", newline="", encoding="utf-8") as f:
