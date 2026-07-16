@@ -1,14 +1,14 @@
 {
   "paneles": [
-    {"potencia_kwp": 0.8, "precio_usd": 1200},
-    {"potencia_kwp": 1.2, "precio_usd": 1600},
-    {"potencia_kwp": 2.0, "precio_usd": 2400},
-    {"potencia_kwp": 3.0, "precio_usd": 3300}
+    {"potencia_kwp": 0.8, "precio_usd": 900},
+    {"potencia_kwp": 1.2, "precio_usd": 1050},
+    {"potencia_kwp": 2.4, "precio_usd": 2450},
+    {"potencia_kwp": 5.0, "precio_usd": 4000}
   ],
   "baterias": [
     {"capacidad_kwh": 2.0, "precio_usd": 900},
-    {"capacidad_kwh": 5.0, "precio_usd": 1500},
-    {"capacidad_kwh": 8.0, "precio_usd": 2300},
+    {"capacidad_kwh": 5.0, "precio_usd": 2200},
+    {"capacidad_kwh": 8.0, "precio_usd": 2600},
     {"capacidad_kwh": 10.0, "precio_usd": 3000}
   ],
   "cables": [

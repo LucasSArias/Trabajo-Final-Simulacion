@@ -15,6 +15,7 @@ path_opciones = "variables_de_control.json"
 
 # Salida del reporte de escenarios
 path_salida_csv = "resultados_simulacion.csv"
+path_resumen_csv = "resumen_mejores_escenarios.csv"
 
 def cargar_json(ruta):
     with open(ruta, 'r', encoding='utf-8') as f:
@@ -62,6 +63,17 @@ resultados_globales = []
 total_escenarios = len(combinaciones)
 print(f"Iniciando simulación de {total_escenarios} escenarios...")
 
+objetivos_metricas = {
+    "Costo Acumulado Total ($)": "min",
+    "Autosuficiencia Anual (%)": "max",
+    "Ahorro Económico Anual ($)": "max",
+    "Tiempo Bat Agotada (%)": "min",
+    "Ciclos de Desgaste Anual": "min",
+    "Aprovechamiento Solar (%)": "max",
+}
+
+mejores_escenarios = {nombre: None for nombre in objetivos_metricas}
+
 for idx, (panel, bateria, cable, gestor_inteligente) in enumerate(combinaciones, 1):
     if idx % 10 == 0 or idx == 1:
         print(f" -> Procesando escenario {idx}/{total_escenarios}...")
@@ -79,7 +91,7 @@ for idx, (panel, bateria, cable, gestor_inteligente) in enumerate(combinaciones,
     
     # 3.1 Inicialización de Variables del Escenario
     T = 0
-    TF = 8760 * 1#TODO: Cuando sepamos que todo funciona, multiplicar por 50 para que los resultados sean correctos
+    TF = 8760 * 10#TODO: Cuando sepamos que todo funciona, multiplicar por 50 para que los resultados sean correctos
     
     #Condiciones iniciales de variables de estado y variables intermedias (usadas para el cálculo de resultados)
     carga_bateria = 0
@@ -94,6 +106,7 @@ for idx, (panel, bateria, cable, gestor_inteligente) in enumerate(combinaciones,
     energia_bateria_ciclada = 0
     energia_ciclada_historica = 0
     capacidad_actual_bateria = capacidad_bateria
+    precio_reintegro = 0.05
     
     precio_consumo = 0.05 if gestor_inteligente else 0.3 #TODO: Actualizar en documentación el precio de los kWh segun si hay gestor inteligente o no.
     costo_acumulado = costo_instalacion_cable + precio_panel + precio_bateria
@@ -149,10 +162,10 @@ for idx, (panel, bateria, cable, gestor_inteligente) in enumerate(combinaciones,
                 
                 if gestor_inteligente:
                     energia_inyectada_red += excedente
-                    costo_acumulado -= excedente * 0.05
+                    costo_acumulado -= excedente * precio_reintegro
                 else:
                     energia_desperdiciada += excedente
-                    lucro_cesante += excedente * 0.05
+                    lucro_cesante += excedente * precio_reintegro
             else:
                 carga_bateria += excedente
                 energia_bateria_ciclada += excedente
@@ -191,7 +204,7 @@ for idx, (panel, bateria, cable, gestor_inteligente) in enumerate(combinaciones,
     porcentaje_aprovechamiento_solar = (1 - (energia_desperdiciada / generacion_total)) * 100 if generacion_total > 0 else 0.0
     
     # Guardamos los parámetros de entrada y salida del escenario
-    resultados_globales.append({
+    resultado_escenario = {
         "Escenario": idx,
         "Potencia Panel (kWp)": potencia_paneles,
         "Precio Panel ($)": precio_panel,
@@ -207,7 +220,20 @@ for idx, (panel, bateria, cable, gestor_inteligente) in enumerate(combinaciones,
         "Tiempo Bat Agotada (%)": round(porcentaje_bateria_agotada, 2),
         "Ciclos de Desgaste Anual": round(ciclos_desgaste_anual, 2),
         "Aprovechamiento Solar (%)": round(porcentaje_aprovechamiento_solar, 2)
-    })
+    }
+
+    resultados_globales.append(resultado_escenario)
+
+    for nombre_metrica, direccion in objetivos_metricas.items():
+        mejor_actual = mejores_escenarios[nombre_metrica]
+        valor_nuevo = resultado_escenario[nombre_metrica]
+
+        if mejor_actual is None:
+            mejores_escenarios[nombre_metrica] = resultado_escenario
+        else:
+            valor_actual = mejor_actual[nombre_metrica]
+            if (direccion == "max" and valor_nuevo > valor_actual) or (direccion == "min" and valor_nuevo < valor_actual):
+                mejores_escenarios[nombre_metrica] = resultado_escenario
 
 # =============================================================================
 # 4. EXPORTACIÓN A CSV
@@ -218,8 +244,55 @@ if resultados_globales:
         writer = csv.DictWriter(f, fieldnames=columnas)
         writer.writeheader()
         writer.writerows(resultados_globales)
+
+    resumen_mejores_escenarios = []
+    for nombre_metrica, direccion in objetivos_metricas.items():
+        mejor_escenario = mejores_escenarios[nombre_metrica]
+        if mejor_escenario is None:
+            continue
+
+        resumen_mejores_escenarios.append({
+            "Metrica": nombre_metrica,
+            "Objetivo": "Maximizar" if direccion == "max" else "Minimizar",
+            "Escenario": mejor_escenario["Escenario"],
+            "Valor": mejor_escenario[nombre_metrica],
+            "Potencia Panel (kWp)": mejor_escenario["Potencia Panel (kWp)"],
+            "Capacidad Batería (kWh)": mejor_escenario["Capacidad Batería (kWh)"],
+            "Cable": mejor_escenario["Cable"],
+            "Gestor Inteligente": mejor_escenario["Gestor Inteligente"],
+            "Precio Panel ($)": mejor_escenario["Precio Panel ($)"],
+            "Precio Batería ($)": mejor_escenario["Precio Batería ($)"],
+            "Costo Instalación Cable ($)": mejor_escenario["Costo Instalación Cable ($)"],
+            "Costo Acumulado Total ($)": mejor_escenario["Costo Acumulado Total ($)"],
+            "Autosuficiencia Anual (%)": mejor_escenario["Autosuficiencia Anual (%)"],
+            "Ahorro Económico Anual ($)": mejor_escenario["Ahorro Económico Anual ($)"],
+            "Tiempo Bat Agotada (%)": mejor_escenario["Tiempo Bat Agotada (%)"],
+            "Ciclos de Desgaste Anual": mejor_escenario["Ciclos de Desgaste Anual"],
+            "Aprovechamiento Solar (%)": mejor_escenario["Aprovechamiento Solar (%)"],
+        })
+
+    with open(path_resumen_csv, mode="w", newline="", encoding="utf-8") as f:
+        fieldnames = list(resumen_mejores_escenarios[0].keys()) if resumen_mejores_escenarios else []
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        if fieldnames:
+            writer.writeheader()
+            writer.writerows(resumen_mejores_escenarios)
         
     print(f"\n¡Listo! Simulación completada con éxito.")
     print(f"Los resultados de los 160 escenarios se guardaron en: {path_salida_csv}")
+    print(f"El resumen tabular de mejores escenarios se guardó en: {path_resumen_csv}")
+
+    print("\nMejores escenarios por métrica:")
+    for nombre_metrica, mejor_escenario in mejores_escenarios.items():
+        if mejor_escenario is None:
+            continue
+        print(
+            f"- {nombre_metrica}: Escenario {mejor_escenario['Escenario']} | "
+            f"Valor = {mejor_escenario[nombre_metrica]} | "
+            f"Panel = {mejor_escenario['Potencia Panel (kWp)']} kWp | "
+            f"Batería = {mejor_escenario['Capacidad Batería (kWh)']} kWh | "
+            f"Cable = {mejor_escenario['Cable']} | "
+            f"Gestor Inteligente = {mejor_escenario['Gestor Inteligente']}"
+        )
 
     #Fin
