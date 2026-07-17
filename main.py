@@ -1,6 +1,7 @@
 import json
 import csv
 import itertools
+from typing import Any
 import numpy as np
 import scipy.stats as stats
 
@@ -25,7 +26,7 @@ datos_consumo = cargar_json(path_consumo)
 datos_generacion = cargar_json(path_generacion)
 opciones = cargar_json(path_opciones)
 
-anios_a_simular = 1
+anios_a_simular = 30
 
 # =============================================================================
 # 2. GENERADOR DE MUESTRAS (FDP)
@@ -116,7 +117,8 @@ objetivos_metricas = {
 }
 
 mejores_escenarios = {nombre: None for nombre in objetivos_metricas}
-mejores_escenarios_crudos = {nombre: None for nombre in objetivos_metricas}
+mejores_escenarios: dict[str, dict[str, Any] | None] = {nombre: None for nombre in objetivos_metricas}
+mejores_escenarios_crudos: dict[str, dict[str, float] | None] = {nombre: None for nombre in objetivos_metricas}
 
 for idx, (panel, bateria, cable, gestor_inteligente) in enumerate(combinaciones, 1):
     if idx % 10 == 0 or idx == 1:
@@ -246,16 +248,17 @@ for idx, (panel, bateria, cable, gestor_inteligente) in enumerate(combinaciones,
 
     porcentaje_autosuficiencia = (cant_operaciones_independientes / TF) * 100
     promedio_ahorro_anual = (consumo_total * 0.3 - costo_acumulado) * (24 * 365 / TF)
-    deficit_energetico_anual = energia_consumida
+    deficit_energetico_anual = energia_consumida / anos_simulados if anos_simulados > 0 else 0.0
     deficit_energetico_mensual = deficit_energetico_anual / meses_simulados if meses_simulados > 0 else 0.0
-    energia_desperdiciada_anual = energia_desperdiciada if not gestor_inteligente else 0.0
+    energia_desperdiciada_anual = energia_desperdiciada / anos_simulados if (not gestor_inteligente and anos_simulados > 0) else 0.0
     lucro_cesante_mensual = (lucro_cesante / meses_simulados) if (not gestor_inteligente and meses_simulados > 0) else 0.0
     porcentaje_bateria_agotada = (cant_veces_bateria_agotada / TF) * 100
-    ciclos_desgaste_anual = (energia_ciclada_historica + energia_bateria_ciclada) / (capacidad_bateria * 2)
-    energia_inyectada_anual = energia_inyectada_red if gestor_inteligente else 0.0
+    ciclos_desgaste_anual = ((energia_ciclada_historica + energia_bateria_ciclada) / (capacidad_bateria * 2)) / anos_simulados if anos_simulados > 0 else 0.0
+    energia_inyectada_anual = energia_inyectada_red / anos_simulados if (gestor_inteligente and anos_simulados > 0) else 0.0
     ingresos_inyeccion_mensual = (energia_inyectada_anual * precio_reintegro / meses_simulados) if (gestor_inteligente and meses_simulados > 0) else 0.0
-    energia_utilizada_total = generacion_total - energia_desperdiciada_anual
-    porcentaje_aprovechamiento_solar = (energia_utilizada_total / generacion_total) * 100 if generacion_total > 0 else 0.0
+    generacion_anual_promedio = generacion_total / anos_simulados if anos_simulados > 0 else 0.0
+    energia_utilizada_total = generacion_anual_promedio - energia_desperdiciada_anual
+    porcentaje_aprovechamiento_solar = (energia_utilizada_total / generacion_anual_promedio) * 100 if generacion_anual_promedio > 0 else 0.0
 
     criterios_desempate_escenario = {
         "Ahorro Económico Anual ($)": promedio_ahorro_anual,
