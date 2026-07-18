@@ -12,7 +12,8 @@ def analizar_mejores_escenarios():
     print("Procesando análisis multicriterio avanzado...")
 
     # 1. Cálculos de Inversión y Recupero
-    df['Costo Gestor'] = np.where(df['Gestor Inteligente'] == True, 5000, 0)
+    # CORRECCIÓN: Actualizado a 1200 para coincidir con el main.py
+    df['Costo Gestor'] = np.where(df['Gestor Inteligente'] == True, 1200, 0)
     df['Inversión Inicial ($)'] = df['Precio Panel ($)'] + df['Precio Batería ($)'] + df['Costo Instalación Cable ($)'] + df['Costo Gestor']
     
     # Calculamos el Tiempo de Recupero (Años).
@@ -23,15 +24,14 @@ def analizar_mejores_escenarios():
         999 
     )
 
+    # AGREGADO: "Cable" sumado a las columnas del reporte
     columnas_reporte = [
         "Escenario", "Potencia Panel (kWp)", "Capacidad Batería (kWh)", 
-        "Gestor Inteligente", "Autosuficiencia Anual (%)", 
-        "Energía Inyectada a Red Anual (kWh)", "Tiempo de Recupero (Años)", 
-        "Promedio Ciclos de Desgaste Anual"
+        "Cable", "Gestor Inteligente", "Autosuficiencia Anual (%)", 
+        "Ahorro Económico Anual ($)", "Tiempo de Recupero (Años)", 
     ]
 
     # 2. TOP 3 RESILIENTES (Off-grid financieramente inteligente)
-    # Mayor autosuficiencia, desempatando por el retorno de inversión más rápido (menor tiempo de recupero)
     resilientes = df.sort_values(
         by=["Autosuficiencia Anual (%)", "Tiempo de Recupero (Años)"], 
         ascending=[False, True]
@@ -39,10 +39,9 @@ def analizar_mejores_escenarios():
     resilientes.insert(1, 'Perfil de Diseño', 'Resiliente')
 
     # 3. TOP 3 INVERSORES / COLABORADORES DE RED
-    # Priorizamos la mayor inyección de energía a la red, desempatando por el recupero más rápido
     inversores = df.sort_values(
-        by=["Energía Inyectada a Red Anual (kWh)", "Tiempo de Recupero (Años)"], 
-        ascending=[False, True]
+        by=["Tiempo de Recupero (Años)", "Ahorro Económico Anual ($)"], 
+        ascending=[True, False]
     ).head(3).copy()
     inversores.insert(1, 'Perfil de Diseño', 'Inversor')
 
@@ -61,16 +60,14 @@ def analizar_mejores_escenarios():
 
     # Llevamos las 4 métricas clave a una escala de 0 a 1
     auto_norm = normalizar_max(df_restante['Autosuficiencia Anual (%)'])
-    inyeccion_norm = normalizar_max(df_restante['Energía Inyectada a Red Anual (kWh)'])
+    ahorro_norm = normalizar_max(df_restante['Ahorro Económico Anual ($)'])
     recupero_norm = normalizar_min(df_restante['Tiempo de Recupero (Años)'])
-    desgaste_norm = normalizar_min(df_restante['Promedio Ciclos de Desgaste Anual'])
 
     # Puntaje Global equilibrado:
-    # 30% Autosuficiencia (Cumplir el objetivo base del usuario)
-    # 30% Tiempo de Recupero (Viabilidad financiera real)
-    # 20% Energía Inyectada (Ayuda sistémica a mitigar picos de la red)
-    # 20% Ciclos de Desgaste (Durabilidad y salud del hardware)
-    df_restante['Puntaje_Global'] = (auto_norm * 0.30) + (recupero_norm * 0.30) + (inyeccion_norm * 0.20) + (desgaste_norm * 0.20)
+    # 15% Autosuficiencia (Cumplir el objetivo base del usuario)
+    # 45% Tiempo de Recupero (Viabilidad financiera real)
+    # 40% Ahorro Económico (Beneficio económico anual)
+    df_restante['Puntaje_Global'] = (auto_norm * 0.15) + (recupero_norm * 0.4) + (ahorro_norm * 0.45)
 
     equilibrados = df_restante.sort_values(by="Puntaje_Global", ascending=False).head(4).copy()
     equilibrados.insert(1, 'Perfil de Diseño', 'Equilibrado')
@@ -85,11 +82,10 @@ def analizar_mejores_escenarios():
     print(f"\n¡Análisis definitivo finalizado con éxito!")
     print(f"Archivo generado: '{nombre_salida}'\n")
     
-    # Formateo visual para la terminal
-    mostrar_terminal = top_10_limpio[['Escenario', 'Perfil de Diseño', 'Autosuficiencia Anual (%)', 'Energía Inyectada a Red Anual (kWh)', 'Tiempo de Recupero (Años)', 'Promedio Ciclos de Desgaste Anual']].copy()
+    # Formateo visual para la terminal (AGREGADO: Columna 'Cable')
+    mostrar_terminal = top_10_limpio[['Escenario', 'Perfil de Diseño', 'Cable', 'Autosuficiencia Anual (%)', 'Ahorro Económico Anual ($)', 'Tiempo de Recupero (Años)']].copy()
     mostrar_terminal['Tiempo de Recupero (Años)'] = mostrar_terminal['Tiempo de Recupero (Años)'].round(1)
-    mostrar_terminal['Energía Inyectada a Red Anual (kWh)'] = mostrar_terminal['Energía Inyectada a Red Anual (kWh)'].round(0)
-    mostrar_terminal['Promedio Ciclos de Desgaste Anual'] = mostrar_terminal['Promedio Ciclos de Desgaste Anual'].round(1)
+    mostrar_terminal['Ahorro Económico Anual ($)'] = mostrar_terminal['Ahorro Económico Anual ($)'].round(0)
     
     print(mostrar_terminal.to_string(index=False))
 

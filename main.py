@@ -98,7 +98,7 @@ for idx, (panel, bateria, cable, gestor_inteligente) in enumerate(combinaciones,
     capacidad_actual_bateria = capacidad_bateria
     precio_reintegro = 0.04
     
-    precio_consumo = 0.05 if gestor_inteligente else 0.15
+    precio_consumo = 0.05 if gestor_inteligente else 0.25
     costo_acumulado = costo_instalacion_cable + precio_panel + precio_bateria
     if gestor_inteligente:
         costo_acumulado += 1200
@@ -216,7 +216,7 @@ for idx, (panel, bateria, cable, gestor_inteligente) in enumerate(combinaciones,
     if gestor_inteligente:
         inversion_inicial += 1200
         
-    ahorro_operativo_anual = ((consumo_total * 0.15) - (costo_acumulado - inversion_inicial)) / anos_simulados
+    ahorro_operativo_anual = ((consumo_total * 0.25) - (costo_acumulado - inversion_inicial)) / anos_simulados
 
     deficit_energetico_anual = energia_consumida / anos_simulados if anos_simulados > 0 else 0.0
     deficit_energetico_mensual = deficit_energetico_anual / meses_simulados if meses_simulados > 0 else 0.0
