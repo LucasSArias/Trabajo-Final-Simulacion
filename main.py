@@ -25,7 +25,7 @@ datos_consumo = cargar_json(path_consumo)
 datos_generacion = cargar_json(path_generacion)
 opciones = cargar_json(path_opciones)
 
-anios_a_simular = 30
+anios_a_simular = 10
 
 # =============================================================================
 # 2. GENERADOR DE MUESTRAS (FDP)
@@ -96,12 +96,12 @@ for idx, (panel, bateria, cable, gestor_inteligente) in enumerate(combinaciones,
     energia_bateria_ciclada = 0
     energia_ciclada_historica = 0
     capacidad_actual_bateria = capacidad_bateria
-    precio_reintegro = 0.05
+    precio_reintegro = 0.04
     
-    precio_consumo = 0.05 if gestor_inteligente else 0.3
+    precio_consumo = 0.05 if gestor_inteligente else 0.15
     costo_acumulado = costo_instalacion_cable + precio_panel + precio_bateria
     if gestor_inteligente:
-        costo_acumulado += 5000
+        costo_acumulado += 1200
         
     # 3.2 Loop de Simulación por horas
     while T < TF:
@@ -133,23 +133,61 @@ for idx, (panel, bateria, cable, gestor_inteligente) in enumerate(combinaciones,
         else:
             generacion = 0.0
             
-        # Escalar generación según los paneles instalados
-        generacion *= potencia_paneles
+        generacion *= (potencia_paneles / 3.4) # Factor de escala
         
         # Ejecución lógica
         consumo_total += consumo
         generacion = generacion * eficiencia_cables
         generacion_total += generacion
         
-        if generacion >= consumo:
-            cant_operaciones_independientes += 1
-            excedente = (generacion - consumo) * eficiencia_cables
-            
-            if excedente >= (capacidad_actual_bateria - carga_bateria):
-                excedente = excedente - (capacidad_actual_bateria - carga_bateria)
-                energia_bateria_ciclada += capacidad_actual_bateria - carga_bateria
-                carga_bateria = capacidad_actual_bateria
+        # LÓGICA DE ALMACENAMIENTO O INYECCIÓN DIRECTA
+        if capacidad_bateria > 0:
+            if generacion >= consumo:
+                cant_operaciones_independientes += 1
+                excedente = (generacion - consumo) * eficiencia_cables
                 
+                if excedente >= (capacidad_actual_bateria - carga_bateria):
+                    excedente = excedente - (capacidad_actual_bateria - carga_bateria)
+                    energia_bateria_ciclada += capacidad_actual_bateria - carga_bateria
+                    carga_bateria = capacidad_actual_bateria
+                    
+                    if gestor_inteligente:
+                        energia_inyectada_red += excedente
+                        costo_acumulado -= excedente * precio_reintegro
+                    else:
+                        energia_desperdiciada += excedente
+                        lucro_cesante += excedente * precio_reintegro
+                else:
+                    carga_bateria += excedente
+                    energia_bateria_ciclada += excedente
+            else:
+                faltante = (consumo - generacion) / eficiencia_cables
+                if faltante <= carga_bateria:
+                    energia_bateria_ciclada += faltante
+                    carga_bateria -= faltante
+                    cant_operaciones_independientes += 1
+                else:
+                    energia_bateria_ciclada += carga_bateria
+                    cant_veces_bateria_agotada += 1
+                    energia_consumida += (faltante - carga_bateria)
+                    costo_acumulado += (faltante - carga_bateria) * precio_consumo
+                    carga_bateria = 0
+                    
+            # Simulación de desgaste/degradación de batería
+            ciclos_actuales = energia_bateria_ciclada / (capacidad_bateria * 2)
+            capacidad_actual_bateria = capacidad_bateria - (capacidad_bateria * 0.0002 * ciclos_actuales)
+            
+            # Reemplazo de batería por fin de vida útil
+            if capacidad_actual_bateria < 1:
+                capacidad_actual_bateria = capacidad_bateria
+                costo_acumulado += precio_bateria
+                energia_ciclada_historica += energia_bateria_ciclada
+                energia_bateria_ciclada = 0
+                carga_bateria = capacidad_bateria
+        else:
+            # Lógica para instalaciones estrictamente On-Grid (sin almacenamiento)
+            if generacion >= consumo:
+                excedente = (generacion - consumo) * eficiencia_cables
                 if gestor_inteligente:
                     energia_inyectada_red += excedente
                     costo_acumulado -= excedente * precio_reintegro
@@ -157,47 +195,41 @@ for idx, (panel, bateria, cable, gestor_inteligente) in enumerate(combinaciones,
                     energia_desperdiciada += excedente
                     lucro_cesante += excedente * precio_reintegro
             else:
-                carga_bateria += excedente
-                energia_bateria_ciclada += excedente
-        else:
-            faltante = (consumo - generacion) / eficiencia_cables
-            if faltante <= carga_bateria:
-                energia_bateria_ciclada += faltante
-                carga_bateria -= faltante
-                cant_operaciones_independientes += 1
-            else:
-                energia_bateria_ciclada += carga_bateria
-                cant_veces_bateria_agotada += 1
-                energia_consumida += (faltante - carga_bateria)
-                costo_acumulado += (faltante - carga_bateria) * precio_consumo
-                carga_bateria = 0
+                faltante = (consumo - generacion) / eficiencia_cables
+                energia_consumida += faltante
+                costo_acumulado += faltante * precio_consumo
                 
-        # Simulación de desgaste/degradación de batería
-        ciclos_actuales = energia_bateria_ciclada / (capacidad_bateria * 2)
-        capacidad_actual_bateria = capacidad_bateria - (capacidad_bateria * 0.0002 * ciclos_actuales)
-        
-        # Reemplazo de batería por fin de vida útil
-        if capacidad_actual_bateria < 1:
-            capacidad_actual_bateria = capacidad_bateria
-            costo_acumulado += precio_bateria
-            energia_ciclada_historica += energia_bateria_ciclada
-            energia_bateria_ciclada = 0
-            carga_bateria = capacidad_bateria
-            
         T += 1
         
     # 3.3 Métricas finales de este escenario específico
     anos_simulados = TF / 8760
     meses_simulados = anos_simulados * 12
 
-    porcentaje_autosuficiencia = (cant_operaciones_independientes / TF) * 100
-    promedio_ahorro_anual = (consumo_total * 0.3 - costo_acumulado) * (24 * 365 / TF)
+    if consumo_total > 0:
+        energia_red_hacia_casa = energia_consumida * eficiencia_cables
+        porcentaje_autosuficiencia = (1 - (energia_red_hacia_casa / consumo_total)) * 100
+    else:
+        porcentaje_autosuficiencia = 100.0
+        
+    # CORRECCIÓN FINANCIERA: Aislamos la inversión inicial del costo operativo
+    inversion_inicial = costo_instalacion_cable + precio_panel + precio_bateria
+    if gestor_inteligente:
+        inversion_inicial += 1200
+        
+    ahorro_operativo_anual = ((consumo_total * 0.15) - (costo_acumulado - inversion_inicial)) / anos_simulados
+
     deficit_energetico_anual = energia_consumida / anos_simulados if anos_simulados > 0 else 0.0
     deficit_energetico_mensual = deficit_energetico_anual / meses_simulados if meses_simulados > 0 else 0.0
     energia_desperdiciada_anual = energia_desperdiciada / anos_simulados if (not gestor_inteligente and anos_simulados > 0) else 0.0
     lucro_cesante_mensual = (lucro_cesante / meses_simulados) if (not gestor_inteligente and meses_simulados > 0) else 0.0
     porcentaje_bateria_agotada = (cant_veces_bateria_agotada / TF) * 100
-    ciclos_desgaste_anual = ((energia_ciclada_historica + energia_bateria_ciclada) / (capacidad_bateria * 2)) / anos_simulados if anos_simulados > 0 else 0.0
+    
+    # Previene división por cero si la capacidad es 0
+    if capacidad_bateria > 0 and anos_simulados > 0:
+        ciclos_desgaste_anual = ((energia_ciclada_historica + energia_bateria_ciclada) / (capacidad_bateria * 2)) / anos_simulados
+    else:
+        ciclos_desgaste_anual = 0.0
+        
     energia_inyectada_anual = energia_inyectada_red / anos_simulados if (gestor_inteligente and anos_simulados > 0) else 0.0
     ingresos_inyeccion_mensual = (energia_inyectada_anual * precio_reintegro / meses_simulados) if (gestor_inteligente and meses_simulados > 0) else 0.0
     generacion_anual_promedio = generacion_total / anos_simulados if anos_simulados > 0 else 0.0
@@ -215,12 +247,12 @@ for idx, (panel, bateria, cable, gestor_inteligente) in enumerate(combinaciones,
         "Eficiencia Cable (%)": eficiencia_cables * 100,
         "Costo Instalación Cable ($)": costo_instalacion_cable,
         "Gestor Inteligente": gestor_inteligente,
-        "Autosuficiencia Anual (%)": round(porcentaje_autosuficiencia, 2),
+        "Autosuficiencia Anual (%)": round(porcentaje_autosuficiencia, 3),
         "Déficit Energético Anual (kWh)": round(deficit_energetico_anual, 2),
         "Déficit Energético Mensual Promedio (kWh/mes)": round(deficit_energetico_mensual, 2),
         "Energía Desperdiciada Anual (kWh)": round(energia_desperdiciada_anual, 2),
         "Lucro Cesante Mensual Promedio ($/mes)": round(lucro_cesante_mensual, 2),
-        "Ahorro Económico Anual ($)": round(promedio_ahorro_anual, 2),
+        "Ahorro Económico Anual ($)": round(ahorro_operativo_anual, 2),
         "Porcentaje Bateria Agotada (%)": round(porcentaje_bateria_agotada, 2),
         "Promedio Ciclos de Desgaste Anual": round(ciclos_desgaste_anual, 2),
         "Aprovechamiento Solar (%)": round(porcentaje_aprovechamiento_solar, 2),
