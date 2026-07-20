@@ -25,7 +25,7 @@ datos_consumo = cargar_json(path_consumo)
 datos_generacion = cargar_json(path_generacion)
 opciones = cargar_json(path_opciones)
 
-anios_a_simular = 10
+anios_a_simular = 20
 
 # =============================================================================
 # 2. GENERADOR DE MUESTRAS (FDP)
